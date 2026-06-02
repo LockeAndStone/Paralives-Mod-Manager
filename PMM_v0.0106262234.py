@@ -20,19 +20,19 @@ import json
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.settings = self.load_settings()
-        self.user_id = getpass.getuser()
         self.base_dir = Path(os.environ["USERPROFILE"])
         self.local_mod_dir = self.base_dir / "AppData/LocalLow/Paralives/Paralives"
+        self.settings = self.load_settings()
+        self.user_id = getpass.getuser()
         self.game_dir = Path(self.settings["GameDir"])
         self.workshop_dir = Path(self.settings["WorkshopDir"])
         self.changes_made = False
-
-        self.mods = self.get_installed_local()
+        self.installed_mods = []
         # single source of truth lookup
-        self.mod_map = {mod["GUID"]: mod for mod in self.mods}
-
+        self.mod_map = ""
         self.base_mods = ["MySavedGames.mod", "MyPremadeOutfits.mod", "MyPremadeLot.mod", "MyPremadeHouseholds.mod", "MyOptions.mod", "Local.mod", ""]
+
+        self.get_installed_mods()
 
         self.setAcceptDrops(True)
         self.setWindowTitle("Paralives Mod Manager")
@@ -59,7 +59,7 @@ class MainWindow(QMainWindow):
 
         refresh_btn = QPushButton("Refresh")
         # refresh_btn.setMaximumWidth(40)
-        refresh_btn.clicked.connect(self.load_mods)
+        refresh_btn.clicked.connect(self.refresh)
 
         search_bar = QLineEdit()
         search_bar.setPlaceholderText("Not implemented yet...")
@@ -171,7 +171,7 @@ class MainWindow(QMainWindow):
         self.mod_list.blockSignals(True)
         self.mod_list.clear()
 
-        for mod in self.mods:
+        for mod in self.installed_mods:
 
             # skip base mods
             if mod["ModName"] in self.base_mods:
@@ -194,9 +194,8 @@ class MainWindow(QMainWindow):
 
         self.mod_list.blockSignals(False)
 
-
     # get a list of mod paths from the local directory
-    def get_installed_local(self):
+    def get_installed_mods(self):
         mods = []
         for item in self.local_mod_dir.glob("*.mod"):
             meta = self.read_meta_file(item)
@@ -208,9 +207,9 @@ class MainWindow(QMainWindow):
                     meta = self.read_meta_file(sub)
                     mods.append(meta)
         
-        return mods
+        self.installed_mods = mods
+        self.mod_map = {mod["GUID"]: mod for mod in self.installed_mods}
     
-
     # For each mod, get the meta data and thumbnail, and return it back to the list
     def read_meta_file(self, mod_path):
         mod_path = Path(mod_path)
@@ -260,7 +259,7 @@ class MainWindow(QMainWindow):
     def on_item_changed(self, item):
         guid = item.data(Qt.UserRole)
 
-        # Retrieves dictionary from self.mods using self.mod_map
+        # Retrieves dictionary from self.installed_mods using self.mod_map
         mod = self.mod_map.get(guid)
         if not mod:
             return 
@@ -305,7 +304,7 @@ class MainWindow(QMainWindow):
                 mod["Enabled"] = "True" if item.checkState() == Qt.Checked else "False"
 
         # write all mods
-        for mod in self.mods:
+        for mod in self.installed_mods:
             self.write_meta_file(mod)
 
         self.changes_made = False
@@ -347,7 +346,7 @@ class MainWindow(QMainWindow):
 
         new_mod = self.read_meta_file(final_path)
 
-        self.mods.append(new_mod)
+        self.installed_mods.append(new_mod)
         self.mod_map[new_mod["GUID"]] = new_mod
 
         self.load_mods()
@@ -415,7 +414,7 @@ class MainWindow(QMainWindow):
             rmtree(mod_path)
 
         # 2. delete from memory
-        self.mods = [m for m in self.mods if m["GUID"] != guid]
+        self.installed_mods = [m for m in self.installed_mods if m["GUID"] != guid]
         self.mod_map.pop(guid, None)
 
         # 3. refresh UI
@@ -539,6 +538,8 @@ class MainWindow(QMainWindow):
         if not mod:
             return
         
+        print(mod["ModPath"])
+
         confirm = QMessageBox.question(
             None,
             "Confirm Action",
@@ -550,12 +551,9 @@ class MainWindow(QMainWindow):
             mod["IsFromWorkshop"] = "False"
 
             self.write_meta_file(mod)
-            shutil.move(
-                mod["ModPath"],
-                f"{self.local_mod_dir}\\{mod.get('ModName')}.mod"
-            )
+            shutil.move(mod["ModPath"], self.local_mod_dir)
 
-            self.load_mods()
+            self.refresh()
             self.select_top_mod()
 
             QMessageBox.information(
@@ -570,6 +568,10 @@ class MainWindow(QMainWindow):
     def select_top_mod(self):
         self.mod_list.setCurrentRow(0)
         self.display_metadata()
+
+    def refresh(self):
+        self.get_installed_mods()
+        self.load_mods()
 
 
 if __name__ == "__main__":
