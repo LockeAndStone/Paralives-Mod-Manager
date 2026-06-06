@@ -498,7 +498,7 @@ class MainWindow(QMainWindow):
 
         except (FileNotFoundError, json.JSONDecodeError):
 
-            QMessageBox.information(None, "Select Game EXE", "Select your 'Paralives.exe' file on the next screen.")
+            QMessageBox.information(None, "First Time Setup", "Select your 'Paralives.exe' file on the next screen.")
             possible_exe_locations = [Path(r"C:\Program Files (x86)\Steam\steamapps\common\Paralives"),
                                       Path(r"D:\SteamLibrary\steamapps\common\Paralives"),
                                       Path(r"E:\SteamLibrary\steamapps\common\Paralives")
