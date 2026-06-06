@@ -15,6 +15,7 @@ import tempfile
 import os
 import json
 import sys
+import py7zr
 
 #### MAKE A CLASS FOR MODS?
 
@@ -331,13 +332,17 @@ class MainWindow(QMainWindow):
             self,
             "Select Mod Zip",
             "",
-            "Zip Files (*.zip)"
+            "Archive Files (*.zip *.7z)"
         )[0]
 
         if not file_path:
             return
 
-        self._install_zip(Path(file_path))
+        if file_path.endswith(".zip"):
+            self._install_zip(Path(file_path))
+        if file_path.endswith(".7z"):
+            self._install_7zip(Path(file_path))
+
         
     # Extracts a mod from a zip file and copies the contents containing the .mod to the local mod dir
     def _install_zip(self, zip_path: Path):
@@ -370,10 +375,41 @@ class MainWindow(QMainWindow):
 
         print(f"Installed: {new_mod['ModName']}")
 
+    # Extracts a mod from a zip file and copies the contents containing the .mod to the local mod dir
+    def _install_7zip(self, zip_path: Path):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+
+            with py7zr.SevenZipFile(zip_path, mode='r') as zip_ref:
+                zip_ref.extractall(tmpdir)
+
+            mod_folders = list(tmpdir.rglob("*.mod"))
+            if not mod_folders:
+                print("No .mod folder found")
+                return
+
+            mod_folder = mod_folders[0]
+            final_path = self.local_mod_dir / mod_folder.name
+
+            if final_path.exists():
+                print("Mod already exists")
+                return
+
+            shutil.move(str(mod_folder), final_path)
+
+        new_mod = self.read_meta_file(final_path)
+
+        self.installed_mods.append(new_mod)
+        self.mod_map[new_mod["GUID"]] = new_mod
+
+        self.load_mods()
+
+        print(f"Installed: {new_mod['ModName']}")
+
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
             for url in event.mimeData().urls():
-                if url.toLocalFile().endswith(".zip"):
+                if url.toLocalFile().endswith(".zip") or url.toLocalFile().endswith(".7z"):
                     event.acceptProposedAction()
                     return
 
@@ -386,6 +422,8 @@ class MainWindow(QMainWindow):
 
             if file_path.endswith(".zip"):
                 self._install_zip(Path(file_path))
+            if file_path.endswith(".7z"):
+                self._install_7zip(Path(file_path))
 
     # Delete selected mod, need to ask if they are sure with a message...
     def delete_selected_mod(self):
