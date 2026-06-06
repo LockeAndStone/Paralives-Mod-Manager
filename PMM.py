@@ -182,6 +182,7 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(top_bar)
         root_layout.addWidget(main_panel)
 
+    # builds the list of mods in the mod list and stores the GUID for use in the hash_map
     def load_mods(self):
         self.mod_list.blockSignals(True)
         self.mod_list.clear()
@@ -282,6 +283,7 @@ class MainWindow(QMainWindow):
         mod["Enabled"] = "True" if item.checkState() == Qt.Checked else "False"
         self.changes_made = True
 
+    # Writes changes to disk.
     def write_meta_file(self, mod):
         meta_path = Path(mod["MetaData"])
 
@@ -307,8 +309,8 @@ class MainWindow(QMainWindow):
                 else:
                     f.write(f"{key}:{value}\n")
 
+    # Saves the changes to enabled/disabled to runtime data
     def deploy_mods(self):
-        # optional safety: sync UI → model before saving
         for i in range(self.mod_list.count()):
             item = self.mod_list.item(i)
 
@@ -318,13 +320,14 @@ class MainWindow(QMainWindow):
             if mod and (item.flags() & Qt.ItemIsUserCheckable):
                 mod["Enabled"] = "True" if item.checkState() == Qt.Checked else "False"
 
-        # write all mods
+        # write all mods to disk
         for mod in self.installed_mods:
             self.write_meta_file(mod)
 
         self.changes_made = False
         print("Mods Deployed")
 
+    # Allows the user to manually select the location of a mod in a zip file. The runs the _install_zip() function
     def add_mod_from_zip(self):
         file_path = QFileDialog.getOpenFileName(
             self,
@@ -338,6 +341,7 @@ class MainWindow(QMainWindow):
 
         self._install_zip(Path(file_path))
         
+    # Extracts a mod from a zip file and copies the contents containing the .mod to the local mod dir
     def _install_zip(self, zip_path: Path):
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = Path(tmpdir)
@@ -376,6 +380,7 @@ class MainWindow(QMainWindow):
                     return
 
         event.ignore()
+
 
     def dropEvent(self, event):
         for url in event.mimeData().urls():
@@ -439,6 +444,7 @@ class MainWindow(QMainWindow):
 
         print(f"Deleted: {mod_name}")
 
+    # Handles launching the game using steam url. If there are still changes to be made, then it will prompt the user to do so before launching
     def launch_game(self):
         if self.changes_made:
             confirm = QMessageBox.question(
@@ -452,6 +458,7 @@ class MainWindow(QMainWindow):
         app_id = "1118520"
         os.startfile(f"steam://run/{app_id}")
 
+    # Changes what is displayed in the mod info screen when selecting a mod in the list
     def display_metadata(self):
         item = self.mod_list.currentItem()
 
@@ -489,6 +496,7 @@ class MainWindow(QMainWindow):
         else:
             self.convert_from_workshop_btn.hide()
 
+    # Intialises self.settings with local data or runs first time setup.
     def load_settings(self):
         try:
             with open("settings.json", "r") as f:
@@ -538,10 +546,12 @@ class MainWindow(QMainWindow):
         
         return settings
 
+    # Function to be used whenever settings are changed within the application itself. Saves to local settings file
     def save_settings(self):
         with open("settings.json", "w") as f:
             json.dump(self.settings, f, indent=4)
 
+    # Copies the mod from workshop to local mod dir
     def convert_from_workshop(self):
         item = self.mod_list.currentItem()
 
@@ -580,7 +590,7 @@ class MainWindow(QMainWindow):
             
         else:
             return
-        
+    
     def select_top_mod(self):
         self.mod_list.setCurrentRow(0)
         self.display_metadata()
