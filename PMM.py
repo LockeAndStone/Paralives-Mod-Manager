@@ -28,18 +28,17 @@ class SearchBar(QLineEdit):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.meow_button_count = 0
-        self.base_dir = Path(os.environ["USERPROFILE"])
-        self.local_mod_dir = self.base_dir / "AppData/LocalLow/Paralives/Paralives"
-        self.settings = self.load_settings()
-        self.user_id = getpass.getuser()
-        self.game_dir = Path(self.settings["GameDir"])
-        self.workshop_dir = Path(self.settings["WorkshopDir"])
-        self.changes_made = False
-        self.installed_mods = []
-        # single source of truth lookup
-        self.mod_map = ""
-        self.base_mods = ["MySavedGames.mod", "MyPremadeOutfits.mod", "MyPremadeLot.mod", "MyPremadeHouseholds.mod", "MyOptions.mod", "Local.mod", ""]
+        self.meow_button_count = 0 # A counter for a super secret meow button...
+        self.base_dir = Path(os.environ["USERPROFILE"]) # Set the base dir for where the users folder is on the OS
+        self.local_mod_dir = self.base_dir / "AppData/LocalLow/Paralives/Paralives" # Using the base dir, points to the paralives mod folder.
+        self.settings = self.load_settings() # Assigns the settings dictionary
+        self.user_id = getpass.getuser() # Gets the userId. Currently not used.
+        self.game_dir = Path(self.settings["GameDir"]) # Sets the game dir from the settings file
+        self.workshop_dir = Path(self.settings["WorkshopDir"]) # Sets the workshop dir from the settings file
+        self.changes_made = False # Tracks whether any mods have been enabled/disabled
+        self.installed_mods = [] # This is where all mod data is stored for the program. Initialised by the self.get_installed_mods() function
+        self.mod_map = "" # This allows for quick lookup for the installed mods. Allows for a single source of truth approach.
+        self.base_mods = ["MySavedGames.mod", "MyPremadeOutfits.mod", "MyPremadeLot.mod", "MyPremadeHouseholds.mod", "MyOptions.mod", "Local.mod", ""] # A list of mods to ignore
 
         self.get_installed_mods()
 
@@ -47,10 +46,13 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Paralives Mod Manager")
         self.resize(1000, 600)
 
+        # ================================
+        # GUI LAYOUT DESIGN
+        # ================================
         # --------------------------------
         # Root
         # --------------------------------
-        root = QFrame()
+        root = QWidget()
         self.setCentralWidget(root)
 
         root_layout = QVBoxLayout(root)
