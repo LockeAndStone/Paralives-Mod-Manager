@@ -17,7 +17,9 @@ import json
 import sys
 import py7zr
 import requests
-import rarfile
+# import rarfile
+from packaging.version import Version
+import webbrowser
 
 #### MAKE A CLASS FOR MODS?
 
@@ -43,17 +45,18 @@ class MainWindow(QMainWindow):
         self.installed_mods = [] # This is where all mod data is stored for the program. Initialised by the self.get_installed_mods() function
         self.mod_map = "" # This allows for quick lookup for the installed mods. Allows for a single source of truth approach.
         self.base_mods = ["MySavedGames.mod", "MyPremadeOutfits.mod", "MyPremadeLot.mod", "MyPremadeHouseholds.mod", "MyOptions.mod", "Local.mod", ""] # A list of mods to ignore
-
+        
         # Set Github API Settings
         self.owner = "LockeAndStone"
         self.repo = "Paralives-Mod-Manager"
         self.giturl = f"https://api.github.com/repos/{self.owner}/{self.repo}/releases/latest"
         self.response = requests.get(self.giturl, timeout=5)
-        self.latest_version = self.response.json()["tag_name"]
-        self.release_url = self.response.json()["html_url"]
-        print(f"Latest Version: {self.latest_version}\nDownload Link: {self.release_url}")
+        self.latest_version = str(self.response.json()["tag_name"])
+        self.download_url = self.get_latest_download()
+        self.update_available = self.check_update()
+        print(f"Download Link: '{self.download_url}'")
+
         # --------------------------------------------------------
-        
 
         self.get_installed_mods()
 
@@ -111,6 +114,11 @@ class MainWindow(QMainWindow):
         # launch_game_btn.setMaximumWidth(120)
         launch_game_btn.clicked.connect(self.launch_game)
 
+        self.update_btn = QPushButton(f"Update Available: {str(self.latest_version)}")
+        if not self.update_available:
+            self.update_btn.hide()
+        self.update_btn.clicked.connect(self.download_latest)
+
         # ----------------------------
         # ASSEMBLE TOP PANEL
         # ----------------------------
@@ -121,6 +129,7 @@ class MainWindow(QMainWindow):
         top_bar_layout.addWidget(delete_mods_btn)
         top_bar_layout.addWidget(deploy_mods_btn)
         top_bar_layout.addWidget(launch_game_btn)
+        top_bar_layout.addWidget(self.update_btn)
 
         # ================================
         # MAIN PANEL
@@ -367,9 +376,9 @@ class MainWindow(QMainWindow):
             elif zip_path.suffix.lower() == ".7z":
                 with py7zr.SevenZipFile(zip_path, mode='r') as zip_ref:
                     zip_ref.extractall(tmpdir)
-            elif zip_path.suffix.lower() == ".rar":
-                with rarfile.RarFile(zip_path) as rf:
-                    rf.extractall(tmpdir)
+            # elif zip_path.suffix.lower() == ".rar":
+            #     with rarfile.RarFile(zip_path) as rf:
+            #         rf.extractall(tmpdir)
 
             mod_folders = list(tmpdir.rglob("*.mod"))
             if not mod_folders:
@@ -412,10 +421,7 @@ class MainWindow(QMainWindow):
         for url in event.mimeData().urls():
             file_path = url.toLocalFile()
 
-            if file_path.endswith(".zip"):
-                self._install_zip(Path(file_path))
-            if file_path.endswith(".7z"):
-                self._install_7zip(Path(file_path))
+            self._install_zip(Path(file_path))
 
     # Delete selected mod, need to ask if they are sure with a message...
     def delete_selected_mod(self):
@@ -636,6 +642,32 @@ class MainWindow(QMainWindow):
 
             matches = text in item.text().lower()
             item.setHidden(not matches)
+
+    def check_update(self):
+        if Version(self.latest_version.lstrip("v")) > Version(self.app_ver):
+            return True
+        else:
+            return False
+
+    def download_latest(self):
+        download_choice = QMessageBox.question(
+            None,
+            f"Download {self.latest_version}",
+            f"Current version: v{self.app_ver}.\nDo you want to download {self.latest_version}?\n\nWindows sees this file as a threat due to the copying of files.\nI am trying to get this resolved.",
+            QMessageBox.Yes | QMessageBox.No
+        )
+
+        if download_choice == QMessageBox.No:
+            return
+        else:
+            webbrowser.open(self.download_url)
+
+    def get_latest_download(self):
+        data = requests.get(self.giturl).json()
+
+        for asset in data["assets"]:
+            if asset["name"].endswith(".exe"):
+                return asset["browser_download_url"]
 
     def meow(self):
         self.meow_button_count += 1
