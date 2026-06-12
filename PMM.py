@@ -2,11 +2,11 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
     QHBoxLayout, QVBoxLayout, QLineEdit,
     QListWidget, QFileDialog, QFrame, QLabel, QPushButton,
-    QListWidgetItem, QMessageBox, QDialog, QTextEdit, QSplitter,
-    QToolBar, QWidgetAction
+    QListWidgetItem, QMessageBox, QTextEdit, QSplitter,
+    QToolBar, QWidgetAction, 
 )
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QPixmap, QShortcut, QIcon
 import getpass
 from pathlib import Path
 import zipfile
@@ -85,59 +85,113 @@ class MainWindow(QMainWindow):
         toolbar = QToolBar("Main Toolbar")
         self.addToolBar(toolbar)
 
-        ### Add actions to replace top panel
+        refresh_action = toolbar.addAction("Refresh")
+        refresh_action.triggered.connect(self.refresh)
+        refresh_action.setToolTip("Refresh Mod List")
 
+        toolbar.addSeparator()
 
-        top_bar = QFrame()
-        top_bar.setFrameShape(QFrame.StyledPanel)
-        top_bar_layout = QHBoxLayout(top_bar)
-        top_bar_layout.setContentsMargins(5, 5, 5, 5)
-        top_bar_layout.setSpacing(2)
-
-        refresh_btn = QPushButton("Refresh")
-        # refresh_btn.setMaximumWidth(40)
-        refresh_btn.clicked.connect(self.refresh)
-
+        search_action = QWidgetAction(self)
         self.search_bar = SearchBar()
         self.search_bar.setPlaceholderText("Search...")
+
+        search_action.setDefaultWidget(self.search_bar)
+        toolbar.addAction(search_action)
+
         self.search_bar.textChanged.connect(self.filter_mods)
 
-        meow_btn = QPushButton("Meow")
-        # search_btn.setMaximumWidth(120)
-        meow_btn.clicked.connect(self.meow)
+        toolbar.addSeparator()
 
-        add_mod_btn = QPushButton("Add Mod")
-        # add_mod_btn.setMaximumWidth(40)
-        add_mod_btn.clicked.connect(self.add_mod_from_zip)
+        add_action = toolbar.addAction("Add Mod")
+        add_action.triggered.connect(self.add_mod_from_zip)
+        add_action.setToolTip("Add a Local Mod")
 
-        delete_mods_btn = QPushButton("Delete Mod")
-        # delete_mods_btn.setMaximumWidth(40)
-        delete_mods_btn.clicked.connect(self.delete_selected_mod)
+        delete_action = toolbar.addAction("Delete Mod")
+        delete_action.triggered.connect(self.delete_selected_mod)
+        delete_action.setToolTip("Delete a Local Mod")
 
-        deploy_mods_btn = QPushButton("Save Changes")
-        # deploy_mods_btn.setMaximumWidth(40)
-        deploy_mods_btn.clicked.connect(self.deploy_mods)
+        toolbar.addSeparator()
 
-        launch_game_btn = QPushButton("Launch")
-        # launch_game_btn.setMaximumWidth(120)
-        launch_game_btn.clicked.connect(self.launch_game)
+        save_action = toolbar.addAction("Save Changes")
+        save_action.triggered.connect(self.deploy_mods)
+        save_action.setToolTip("Save Enabled/Disabled Mods")
 
-        self.update_btn = QPushButton(f"Update Available: {str(self.latest_version)}")
-        if not self.update_available:
-            self.update_btn.hide()
-        self.update_btn.clicked.connect(self.download_latest)
+        toolbar.addSeparator()
 
-        # ----------------------------
-        # ASSEMBLE TOP PANEL
-        # ----------------------------
-        top_bar_layout.addWidget(refresh_btn)
-        top_bar_layout.addWidget(self.search_bar)
-        # top_bar_layout.addWidget(meow_btn)
-        top_bar_layout.addWidget(add_mod_btn)
-        top_bar_layout.addWidget(delete_mods_btn)
-        top_bar_layout.addWidget(deploy_mods_btn)
-        top_bar_layout.addWidget(launch_game_btn)
-        top_bar_layout.addWidget(self.update_btn)
+        launch_action = toolbar.addAction("Launch")
+        launch_action.triggered.connect(self.launch_game)
+        launch_action.setToolTip("Launch Game on Steam")
+
+        if self.update_available:
+            toolbar.addSeparator()
+            update_action = toolbar.addAction(f"Update Available: {str(self.latest_version)}")
+            update_action.triggered.connect(self.download_latest)
+            update_action.setToolTip("Download the Latest Version")
+
+        toolbar.setStyleSheet("""
+        QToolBar {
+                    spacing: 6px;
+                    padding: 4px;
+                    background: #2c2c2c      
+        }
+        QToolBar::separator {
+                    background: #666;
+                    width: 1px;
+                    margin: 4px;
+        }
+""")
+        
+
+        # top_bar = QFrame()
+        # top_bar.setFrameShape(QFrame.StyledPanel)
+        # top_bar_layout = QHBoxLayout(top_bar)
+        # top_bar_layout.setContentsMargins(5, 5, 5, 5)
+        # top_bar_layout.setSpacing(2)
+
+        # refresh_btn = QPushButton("Refresh")
+        # # refresh_btn.setMaximumWidth(40)
+        # refresh_btn.clicked.connect(self.refresh)
+
+        # self.search_bar = SearchBar()
+        # self.search_bar.setPlaceholderText("Search...")
+        # self.search_bar.textChanged.connect(self.filter_mods)
+
+        # meow_btn = QPushButton("Meow")
+        # # search_btn.setMaximumWidth(120)
+        # meow_btn.clicked.connect(self.meow)
+
+        # add_mod_btn = QPushButton("Add Mod")
+        # # add_mod_btn.setMaximumWidth(40)
+        # add_mod_btn.clicked.connect(self.add_mod_from_zip)
+
+        # delete_mods_btn = QPushButton("Delete Mod")
+        # # delete_mods_btn.setMaximumWidth(40)
+        # delete_mods_btn.clicked.connect(self.delete_selected_mod)
+
+        # deploy_mods_btn = QPushButton("Save Changes")
+        # # deploy_mods_btn.setMaximumWidth(40)
+        # deploy_mods_btn.clicked.connect(self.deploy_mods)
+
+        # launch_game_btn = QPushButton("Launch")
+        # # launch_game_btn.setMaximumWidth(120)
+        # launch_game_btn.clicked.connect(self.launch_game)
+
+        # self.update_btn = QPushButton(f"Update Available: {str(self.latest_version)}")
+        # if not self.update_available:
+        #     self.update_btn.hide()
+        # self.update_btn.clicked.connect(self.download_latest)
+
+        # # ----------------------------
+        # # ASSEMBLE TOP PANEL
+        # # ----------------------------
+        # top_bar_layout.addWidget(refresh_btn)
+        # top_bar_layout.addWidget(self.search_bar)
+        # # top_bar_layout.addWidget(meow_btn)
+        # top_bar_layout.addWidget(add_mod_btn)
+        # top_bar_layout.addWidget(delete_mods_btn)
+        # top_bar_layout.addWidget(deploy_mods_btn)
+        # top_bar_layout.addWidget(launch_game_btn)
+        # top_bar_layout.addWidget(self.update_btn)
 
         # ================================
         # MAIN PANEL
@@ -222,8 +276,16 @@ class MainWindow(QMainWindow):
         # =========================================================
         # ADD TO ROOT
         # =========================================================
-        root_layout.addWidget(top_bar)
-        root_layout.addWidget(main_panel, stretch=2)
+        # root_layout.addWidget(top_bar)
+        root_layout.addWidget(main_panel)
+
+        # =========================================================
+        # SHORTCUTS
+        # =========================================================
+        QShortcut("Ctrl+F", self, self.search_bar.setFocus)
+        QShortcut("F5", self, self.refresh)
+        QShortcut("Delete", self, self.delete_selected_mod)
+        QShortcut("Ctrl+S", self, self.deploy_mods)
 
     # builds the list of mods in the mod list and stores the GUID for use in the hash_map
     def load_mods(self):
