@@ -3,7 +3,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout, QVBoxLayout, QLineEdit,
     QListWidget, QFileDialog, QFrame, QLabel, QPushButton,
     QListWidgetItem, QMessageBox, QTextEdit, QSplitter,
-    QToolBar, QWidgetAction, 
+    QToolBar, QWidgetAction, QStackedWidget
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap, QShortcut, QIcon
@@ -57,6 +57,9 @@ class MainWindow(QMainWindow):
         self.update_available = self.check_update()
         print(f"Download Link: '{self.download_url}'")
 
+        self.status_bar = self.statusBar()
+        self.status_bar.showMessage("Ready")
+
         # --------------------------------------------------------
 
         self.get_installed_mods()
@@ -78,16 +81,15 @@ class MainWindow(QMainWindow):
         root_layout.setContentsMargins(10, 10, 10, 10)
         root_layout.setSpacing(10)
 
-        # ================================
-        # TOP BAR
-        # ================================
-
+        # --------------------------------
+        # TOOL BAR
+        # --------------------------------
         toolbar = QToolBar("Main Toolbar")
         self.addToolBar(toolbar)
 
         refresh_action = toolbar.addAction("Refresh")
         refresh_action.triggered.connect(self.refresh)
-        refresh_action.setToolTip("Refresh Mod List")
+        refresh_action.setToolTip("Refresh Mod List [F5]")
 
         toolbar.addSeparator()
 
@@ -104,23 +106,23 @@ class MainWindow(QMainWindow):
 
         add_action = toolbar.addAction("Add Mod")
         add_action.triggered.connect(self.add_mod_from_zip)
-        add_action.setToolTip("Add a Local Mod")
+        add_action.setToolTip("Add a Local Mod [Ctrl + O]")
 
         delete_action = toolbar.addAction("Delete Mod")
         delete_action.triggered.connect(self.delete_selected_mod)
-        delete_action.setToolTip("Delete a Local Mod")
+        delete_action.setToolTip("Delete a Local Mod [Del]")
 
         toolbar.addSeparator()
 
         save_action = toolbar.addAction("Save Changes")
         save_action.triggered.connect(self.deploy_mods)
-        save_action.setToolTip("Save Enabled/Disabled Mods")
+        save_action.setToolTip("Save Enabled/Disabled Mods [Ctrl + S]")
 
         toolbar.addSeparator()
 
         launch_action = toolbar.addAction("Launch")
         launch_action.triggered.connect(self.launch_game)
-        launch_action.setToolTip("Launch Game on Steam")
+        launch_action.setToolTip("Launch Game on Steam [Ctr]")
 
         if self.update_available:
             toolbar.addSeparator()
@@ -142,60 +144,9 @@ class MainWindow(QMainWindow):
 """)
         
 
-        # top_bar = QFrame()
-        # top_bar.setFrameShape(QFrame.StyledPanel)
-        # top_bar_layout = QHBoxLayout(top_bar)
-        # top_bar_layout.setContentsMargins(5, 5, 5, 5)
-        # top_bar_layout.setSpacing(2)
-
-        # refresh_btn = QPushButton("Refresh")
-        # # refresh_btn.setMaximumWidth(40)
-        # refresh_btn.clicked.connect(self.refresh)
-
-        # self.search_bar = SearchBar()
-        # self.search_bar.setPlaceholderText("Search...")
-        # self.search_bar.textChanged.connect(self.filter_mods)
-
-        # meow_btn = QPushButton("Meow")
-        # # search_btn.setMaximumWidth(120)
-        # meow_btn.clicked.connect(self.meow)
-
-        # add_mod_btn = QPushButton("Add Mod")
-        # # add_mod_btn.setMaximumWidth(40)
-        # add_mod_btn.clicked.connect(self.add_mod_from_zip)
-
-        # delete_mods_btn = QPushButton("Delete Mod")
-        # # delete_mods_btn.setMaximumWidth(40)
-        # delete_mods_btn.clicked.connect(self.delete_selected_mod)
-
-        # deploy_mods_btn = QPushButton("Save Changes")
-        # # deploy_mods_btn.setMaximumWidth(40)
-        # deploy_mods_btn.clicked.connect(self.deploy_mods)
-
-        # launch_game_btn = QPushButton("Launch")
-        # # launch_game_btn.setMaximumWidth(120)
-        # launch_game_btn.clicked.connect(self.launch_game)
-
-        # self.update_btn = QPushButton(f"Update Available: {str(self.latest_version)}")
-        # if not self.update_available:
-        #     self.update_btn.hide()
-        # self.update_btn.clicked.connect(self.download_latest)
-
-        # # ----------------------------
-        # # ASSEMBLE TOP PANEL
-        # # ----------------------------
-        # top_bar_layout.addWidget(refresh_btn)
-        # top_bar_layout.addWidget(self.search_bar)
-        # # top_bar_layout.addWidget(meow_btn)
-        # top_bar_layout.addWidget(add_mod_btn)
-        # top_bar_layout.addWidget(delete_mods_btn)
-        # top_bar_layout.addWidget(deploy_mods_btn)
-        # top_bar_layout.addWidget(launch_game_btn)
-        # top_bar_layout.addWidget(self.update_btn)
-
-        # ================================
+        # --------------------------------
         # MAIN PANEL
-        # ================================
+        # --------------------------------
         main_panel = QFrame()
         main_panel_layout = QHBoxLayout(main_panel)
         main_panel_layout.setContentsMargins(0, 0, 0, 0)
@@ -223,7 +174,26 @@ class MainWindow(QMainWindow):
         mod_view_layout.setContentsMargins(0,0,0,0)
         mod_view_layout.setSpacing(0)
 
-        # mod_view_title = QLabel("Mod Information")
+        # ----------------------------
+        # Empty Page
+        # ----------------------------
+        self.info_stack = QStackedWidget()
+
+        empty_page = QWidget()
+        empty_layout = QVBoxLayout(empty_page)
+
+        title = QLabel("No Mod Selected")
+        title.setAlignment(Qt.AlignCenter)
+
+        message = QLabel("Select a mod from the list to view details.")
+        message.setAlignment(Qt.AlignCenter)
+
+        empty_layout.addStretch()
+        empty_layout.addWidget(title)
+        empty_layout.addWidget(message)
+        empty_layout.addStretch()
+
+        
 
         mod_info = QFrame()
         mod_info.setFrameShape(QFrame.StyledPanel)
@@ -254,11 +224,16 @@ class MainWindow(QMainWindow):
         mod_info_layout.addWidget(self.mod_enabled_state)
         mod_info_layout.addWidget(self.mod_workshop_description)
         mod_info_layout.addWidget(self.convert_from_workshop_btn)
+
+        self.info_stack.addWidget(empty_page)
+        self.info_stack.addWidget(mod_info)
+
+        self.info_stack.setCurrentIndex(0)
+
         # =========================================================
         # ADD TO MOD VIEW
         # =========================================================
-        # mod_view_layout.addWidget(mod_view_title, alignment=Qt.AlignCenter)
-        mod_view_layout.addWidget(mod_info, alignment=Qt.AlignCenter, stretch=1)
+        mod_view_layout.addWidget(self.info_stack, alignment=Qt.AlignCenter, stretch=1)
 
         splitter = QSplitter()
         splitter.addWidget(self.mod_list)
@@ -271,12 +246,10 @@ class MainWindow(QMainWindow):
         # ADD TO Main Panel
         # =========================================================
         main_panel_layout.addWidget(splitter)
-        # main_panel_layout.addWidget(mod_view, stretch=1)
 
         # =========================================================
         # ADD TO ROOT
         # =========================================================
-        # root_layout.addWidget(top_bar)
         root_layout.addWidget(main_panel)
 
         # =========================================================
@@ -286,6 +259,7 @@ class MainWindow(QMainWindow):
         QShortcut("F5", self, self.refresh)
         QShortcut("Delete", self, self.delete_selected_mod)
         QShortcut("Ctrl+S", self, self.deploy_mods)
+        QShortcut("Ctrl+O", self, self.add_mod_from_zip)
 
     # builds the list of mods in the mod list and stores the GUID for use in the hash_map
     def load_mods(self):
@@ -386,6 +360,8 @@ class MainWindow(QMainWindow):
         mod["Enabled"] = "True" if item.checkState() == Qt.Checked else "False"
         self.changes_made = True
 
+
+
     # Writes changes to disk.
     def write_meta_file(self, mod):
         meta_path = Path(mod["MetaData"])
@@ -470,7 +446,7 @@ class MainWindow(QMainWindow):
             final_path = self.local_mod_dir / mod_folder.name
 
             if final_path.exists():
-                print("Mod already exists")
+                self.status_bar.showMessage("Mod already exists")
                 return
 
             shutil.move(str(mod_folder), final_path)
@@ -486,7 +462,7 @@ class MainWindow(QMainWindow):
 
         self.load_mods()
 
-        print(f"Installed: {new_mod['ModName']}")
+        self.status_bar.showMessage(f"Installed: {new_mod['ModName']}")
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
@@ -509,7 +485,7 @@ class MainWindow(QMainWindow):
         item = self.mod_list.currentItem()
 
         if not item:
-            print("No mod selected")
+            self.status_bar.showMessage("No mod selected")
             return
 
         guid = item.data(Qt.UserRole)
@@ -557,7 +533,7 @@ class MainWindow(QMainWindow):
 
         self.select_top_mod()
 
-        print(f"Deleted: {mod_name}")
+        self.status_bar.showMessage(f"Deleted: {mod_name}")
 
     # Handles launching the game using steam url. If there are still changes to be made, then it will prompt the user to do so before launching
     def launch_game(self):
@@ -576,6 +552,7 @@ class MainWindow(QMainWindow):
     # Changes what is displayed in the mod info screen when selecting a mod in the list
     def display_metadata(self):
         item = self.mod_list.currentItem()
+        
 
         if not item:
             return
@@ -585,6 +562,8 @@ class MainWindow(QMainWindow):
 
         if not mod:
             return
+        
+        self.status_bar.showMessage(f"{mod.get("ModName")} Selected", 3000)
 
         # ---- Changes ----
         thumbnail_path = mod.get('Thumbnail')
@@ -610,6 +589,8 @@ class MainWindow(QMainWindow):
             self.convert_from_workshop_btn.show()
         else:
             self.convert_from_workshop_btn.hide()
+
+        self.info_stack.setCurrentIndex(1)
 
     # Intialises self.settings with local data or runs first time setup.
     def load_settings(self):
@@ -679,6 +660,8 @@ class MainWindow(QMainWindow):
         if not mod:
             return
         
+        
+        
         print(mod["ModPath"])
 
         confirm = QMessageBox.question(
@@ -697,6 +680,8 @@ class MainWindow(QMainWindow):
             self.refresh()
             self.select_top_mod()
 
+            self.status_bar.showMessage(f"{mod.get("ModName")} converted to Local")
+
             QMessageBox.information(
                 None,
                 "Important",
@@ -713,6 +698,7 @@ class MainWindow(QMainWindow):
     def refresh(self):
         self.get_installed_mods()
         self.load_mods()
+        self.status_bar.showMessage("Mod List Refreshed")
 
     def filter_mods(self, text):
         text = text.lower().strip()
