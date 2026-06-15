@@ -47,18 +47,22 @@ class MainWindow(QMainWindow):
         self.mod_map = "" # This allows for quick lookup for the installed mods. Allows for a single source of truth approach.
         self.base_mods = ["MySavedGames.mod", "MyPremadeOutfits.mod", "MyPremadeLot.mod", "MyPremadeHouseholds.mod", "MyOptions.mod", "Local.mod", ""] # A list of mods to ignore
         
+        self.status_bar = self.statusBar()
+        self.status_bar.showMessage("Ready", 10000)
+
         # Set Github API Settings
         self.owner = "LockeAndStone"
         self.repo = "Paralives-Mod-Manager"
         self.giturl = f"https://api.github.com/repos/{self.owner}/{self.repo}/releases/latest"
         self.response = requests.get(self.giturl, timeout=5)
-        self.latest_version = str(self.response.json()["tag_name"])
-        self.download_url = self.get_latest_download()
-        self.update_available = self.check_update()
-        print(f"Download Link: '{self.download_url}'")
 
-        self.status_bar = self.statusBar()
-        self.status_bar.showMessage("Ready")
+        try:
+            self.latest_version = str(self.response.json()["tag_name"])
+            self.download_url = self.get_latest_download()
+            self.update_available = self.check_update()
+            print(f"Download Link: '{self.download_url}'")
+        except:
+            self.status_bar.showMessage("Unable to connect to GitHub")
 
         # --------------------------------------------------------
 
@@ -86,10 +90,17 @@ class MainWindow(QMainWindow):
         # --------------------------------
         toolbar = QToolBar("Main Toolbar")
         self.addToolBar(toolbar)
+        toolbar.setMovable(False)
+        toolbar.setFloatable(False)
 
         refresh_action = toolbar.addAction("Refresh")
         refresh_action.triggered.connect(self.refresh)
         refresh_action.setToolTip("Refresh Mod List [F5]")
+
+        toolbar.addSeparator()
+
+        settings_action = toolbar.addAction("Settings")
+        settings_action.setToolTip("App Settings")
 
         toolbar.addSeparator()
 
@@ -122,7 +133,7 @@ class MainWindow(QMainWindow):
 
         launch_action = toolbar.addAction("Launch")
         launch_action.triggered.connect(self.launch_game)
-        launch_action.setToolTip("Launch Game on Steam [Ctr]")
+        launch_action.setToolTip("Launch Game on Steam [Ctr + Enter]")
 
         if self.update_available:
             toolbar.addSeparator()
@@ -225,9 +236,42 @@ class MainWindow(QMainWindow):
         mod_info_layout.addWidget(self.mod_workshop_description)
         mod_info_layout.addWidget(self.convert_from_workshop_btn)
 
+        # =========================================================
+        # SETTINGS
+        # =========================================================
+        settings_pane = QWidget()
+        settings_layout = QVBoxLayout(settings_pane)
+
+        settings_title = QLabel("Settings")
+        settings_title.setAlignment(Qt.AlignCenter)
+
+        settings_layout.addWidget(settings_title)
+        
+        choose_game_dir_layout = QHBoxLayout()
+        choose_game_dir_label = QLabel("Choose Game Exe:")
+        self.choose_game_dir_path = QLineEdit()
+        self.choose_game_dir_path.setMinimumWidth(420)
+        self.choose_game_dir_path.setMaximumWidth(700)
+        self.choose_game_dir_path.setText(str(self.game_dir))
+        choose_game_dir_btn = QPushButton("Browse")
+        choose_game_dir_btn.clicked.connect(lambda: print("Browse..."))
+
+        choose_game_dir_layout.addWidget(choose_game_dir_label)
+        choose_game_dir_layout.addWidget(self.choose_game_dir_path)
+        choose_game_dir_layout.addWidget(choose_game_dir_btn)
+
+        settings_layout.addLayout(choose_game_dir_layout)
+
+
+        # =========================================================
+        # BUILD STACK
+        # =========================================================
         self.info_stack.addWidget(empty_page)
         self.info_stack.addWidget(mod_info)
+        self.info_stack.addWidget(settings_pane)
 
+        
+        settings_action.triggered.connect(lambda: self.info_stack.setCurrentIndex(2))
         self.info_stack.setCurrentIndex(0)
 
         # =========================================================
@@ -260,6 +304,7 @@ class MainWindow(QMainWindow):
         QShortcut("Delete", self, self.delete_selected_mod)
         QShortcut("Ctrl+S", self, self.deploy_mods)
         QShortcut("Ctrl+O", self, self.add_mod_from_zip)
+        QShortcut("Ctrl+Return", self, self.launch_game)
 
     # builds the list of mods in the mod list and stores the GUID for use in the hash_map
     def load_mods(self):
@@ -404,7 +449,7 @@ class MainWindow(QMainWindow):
             self.write_meta_file(mod)
 
         self.changes_made = False
-        print("Mods Deployed")
+        self.status_bar.showMessage("Changes saved", 3000)
 
     # Allows the user to manually select the location of a mod in a zip file. The runs the _install_zip() function
     def add_mod_from_zip(self):
@@ -446,7 +491,7 @@ class MainWindow(QMainWindow):
             final_path = self.local_mod_dir / mod_folder.name
 
             if final_path.exists():
-                self.status_bar.showMessage("Mod already exists")
+                self.status_bar.showMessage("Mod already exists", 3000)
                 return
 
             shutil.move(str(mod_folder), final_path)
@@ -462,7 +507,7 @@ class MainWindow(QMainWindow):
 
         self.load_mods()
 
-        self.status_bar.showMessage(f"Installed: {new_mod['ModName']}")
+        self.status_bar.showMessage(f"Installed: {new_mod['ModName']}", 3000)
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
@@ -485,7 +530,7 @@ class MainWindow(QMainWindow):
         item = self.mod_list.currentItem()
 
         if not item:
-            self.status_bar.showMessage("No mod selected")
+            self.status_bar.showMessage("No mod selected", 3000)
             return
 
         guid = item.data(Qt.UserRole)
@@ -533,7 +578,7 @@ class MainWindow(QMainWindow):
 
         self.select_top_mod()
 
-        self.status_bar.showMessage(f"Deleted: {mod_name}")
+        self.status_bar.showMessage(f"Deleted: {mod_name}", 3000)
 
     # Handles launching the game using steam url. If there are still changes to be made, then it will prompt the user to do so before launching
     def launch_game(self):
@@ -563,7 +608,7 @@ class MainWindow(QMainWindow):
         if not mod:
             return
         
-        self.status_bar.showMessage(f"{mod.get("ModName")} Selected", 3000)
+        self.status_bar.showMessage(f"{mod.get('ModName')} Selected", 3000)
 
         # ---- Changes ----
         thumbnail_path = mod.get('Thumbnail')
@@ -680,7 +725,7 @@ class MainWindow(QMainWindow):
             self.refresh()
             self.select_top_mod()
 
-            self.status_bar.showMessage(f"{mod.get("ModName")} converted to Local")
+            self.status_bar.showMessage(f"{mod.get('ModName')} converted to Local", 3000)
 
             QMessageBox.information(
                 None,
@@ -698,7 +743,7 @@ class MainWindow(QMainWindow):
     def refresh(self):
         self.get_installed_mods()
         self.load_mods()
-        self.status_bar.showMessage("Mod List Refreshed")
+        self.status_bar.showMessage("Mod List Refreshed", 3000)
 
     def filter_mods(self, text):
         text = text.lower().strip()
