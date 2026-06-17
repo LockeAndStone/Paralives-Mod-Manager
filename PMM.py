@@ -2,10 +2,11 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
     QHBoxLayout, QVBoxLayout, QLineEdit,
     QListWidget, QFileDialog, QFrame, QLabel, QPushButton,
-    QListWidgetItem, QMessageBox, QDialog, QTextEdit
+    QListWidgetItem, QMessageBox, QTextEdit, QSplitter,
+    QToolBar, QWidgetAction, QStackedWidget, QCheckBox
 )
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QPixmap, QShortcut, QIcon
 import getpass
 from pathlib import Path
 import zipfile
@@ -33,31 +34,39 @@ class SearchBar(QLineEdit):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.app_ver = "1.0.3"
-        self.meow_button_count = 0 # A counter for a super secret meow button...
+        self.app_ver = "1.0.4"
         self.base_dir = Path(os.environ["USERPROFILE"]) # Set the base dir for where the users folder is on the OS
         self.local_mod_dir = self.base_dir / "AppData/LocalLow/Paralives/Paralives" # Using the base dir, points to the paralives mod folder.
-        self.settings = self.load_settings() # Assigns the settings dictionary
-        self.user_id = getpass.getuser() # Gets the userId. Currently not used.
-        self.game_dir = Path(self.settings["GameDir"]) # Sets the game dir from the settings file
-        self.workshop_dir = Path(self.settings["WorkshopDir"]) # Sets the workshop dir from the settings file
+        self.settings = {} # Assigns the settings dictionary
+        self.load_settings()
         self.changes_made = False # Tracks whether any mods have been enabled/disabled
         self.installed_mods = [] # This is where all mod data is stored for the program. Initialised by the self.get_installed_mods() function
         self.mod_map = "" # This allows for quick lookup for the installed mods. Allows for a single source of truth approach.
         self.base_mods = ["MySavedGames.mod", "MyPremadeOutfits.mod", "MyPremadeLot.mod", "MyPremadeHouseholds.mod", "MyOptions.mod", "Local.mod", ""] # A list of mods to ignore
         
+        self.status_bar = self.statusBar()
+        self.status_bar.showMessage("Ready", 10000)
+
         # Set Github API Settings
         self.owner = "LockeAndStone"
         self.repo = "Paralives-Mod-Manager"
         self.giturl = f"https://api.github.com/repos/{self.owner}/{self.repo}/releases/latest"
         self.response = requests.get(self.giturl, timeout=5)
-        self.latest_version = str(self.response.json()["tag_name"])
-        self.download_url = self.get_latest_download()
-        self.update_available = self.check_update()
-        print(f"Download Link: '{self.download_url}'")
+
+        if self.settings["AutoCheck"]:
+            try:
+                self.latest_version = str(self.response.json()["tag_name"])
+                self.download_url = self.get_latest_download()
+                self.update_available = self.check_update()
+                print(f"Download Link: '{self.download_url}'")
+            except:
+                self.status_bar.showMessage("Unable to connect to GitHub")
+                self.update_available = False
+        else:
+            self.status_bar.showMessage("Auto Check for Updates are Disabled", 5000)
 
         # --------------------------------------------------------
-
+        
         self.get_installed_mods()
 
         self.setAcceptDrops(True)
@@ -77,63 +86,79 @@ class MainWindow(QMainWindow):
         root_layout.setContentsMargins(10, 10, 10, 10)
         root_layout.setSpacing(10)
 
-        # ================================
-        # TOP BAR
-        # ================================
-        top_bar = QFrame()
-        top_bar.setFrameShape(QFrame.StyledPanel)
-        top_bar_layout = QHBoxLayout(top_bar)
-        top_bar_layout.setContentsMargins(5, 5, 5, 5)
-        top_bar_layout.setSpacing(2)
+        # --------------------------------
+        # TOOL BAR
+        # --------------------------------
+        toolbar = QToolBar("Main Toolbar")
+        self.addToolBar(toolbar)
+        toolbar.setMovable(False)
+        toolbar.setFloatable(False)
 
-        refresh_btn = QPushButton("Refresh")
-        # refresh_btn.setMaximumWidth(40)
-        refresh_btn.clicked.connect(self.refresh)
+        refresh_action = toolbar.addAction("Refresh")
+        refresh_action.triggered.connect(self.refresh)
+        refresh_action.setToolTip("Refresh Mod List [F5]")
 
+        toolbar.addSeparator()
+
+        settings_action = toolbar.addAction("Settings")
+        settings_action.setToolTip("App Settings [F2]")
+
+        toolbar.addSeparator()
+
+        search_action = QWidgetAction(self)
         self.search_bar = SearchBar()
         self.search_bar.setPlaceholderText("Search...")
+
+        search_action.setDefaultWidget(self.search_bar)
+        toolbar.addAction(search_action)
+
         self.search_bar.textChanged.connect(self.filter_mods)
 
-        meow_btn = QPushButton("Meow")
-        # search_btn.setMaximumWidth(120)
-        meow_btn.clicked.connect(self.meow)
+        toolbar.addSeparator()
 
-        add_mod_btn = QPushButton("Add Mod")
-        # add_mod_btn.setMaximumWidth(40)
-        add_mod_btn.clicked.connect(self.add_mod_from_zip)
+        add_action = toolbar.addAction("Add Mod")
+        add_action.triggered.connect(self.add_mod_from_zip)
+        add_action.setToolTip("Add a Local Mod [Ctrl + O]")
 
-        delete_mods_btn = QPushButton("Delete Mod")
-        # delete_mods_btn.setMaximumWidth(40)
-        delete_mods_btn.clicked.connect(self.delete_selected_mod)
+        delete_action = toolbar.addAction("Delete Mod")
+        delete_action.triggered.connect(self.delete_selected_mod)
+        delete_action.setToolTip("Delete a Local Mod [Del]")
 
-        deploy_mods_btn = QPushButton("Save Changes")
-        # deploy_mods_btn.setMaximumWidth(40)
-        deploy_mods_btn.clicked.connect(self.deploy_mods)
+        toolbar.addSeparator()
 
-        launch_game_btn = QPushButton("Launch")
-        # launch_game_btn.setMaximumWidth(120)
-        launch_game_btn.clicked.connect(self.launch_game)
+        save_action = toolbar.addAction("Save Changes")
+        save_action.triggered.connect(self.deploy_mods)
+        save_action.setToolTip("Save Enabled/Disabled Mods [Ctrl + S]")
 
-        self.update_btn = QPushButton(f"Update Available: {str(self.latest_version)}")
-        if not self.update_available:
-            self.update_btn.hide()
-        self.update_btn.clicked.connect(self.download_latest)
+        toolbar.addSeparator()
 
-        # ----------------------------
-        # ASSEMBLE TOP PANEL
-        # ----------------------------
-        top_bar_layout.addWidget(refresh_btn)
-        top_bar_layout.addWidget(self.search_bar)
-        # top_bar_layout.addWidget(meow_btn)
-        top_bar_layout.addWidget(add_mod_btn)
-        top_bar_layout.addWidget(delete_mods_btn)
-        top_bar_layout.addWidget(deploy_mods_btn)
-        top_bar_layout.addWidget(launch_game_btn)
-        top_bar_layout.addWidget(self.update_btn)
+        launch_action = toolbar.addAction("Launch")
+        launch_action.triggered.connect(self.launch_game)
+        launch_action.setToolTip("Launch Game on Steam [Ctr + Enter]")
 
-        # ================================
+        if self.settings["AutoCheck"]:
+            if self.update_available:
+                toolbar.addSeparator()
+                update_action = toolbar.addAction(f"Update Available: {str(self.latest_version)}")
+                update_action.triggered.connect(self.download_latest)
+                update_action.setToolTip("Download the Latest Version")
+
+        toolbar.setStyleSheet("""
+        QToolBar {
+                    spacing: 6px;
+                    padding: 4px;
+                    background: #2c2c2c      
+        }
+        QToolBar::separator {
+                    background: #666;
+                    width: 1px;
+                    margin: 4px;
+        }
+""")
+    
+        # --------------------------------
         # MAIN PANEL
-        # ================================
+        # --------------------------------
         main_panel = QFrame()
         main_panel_layout = QHBoxLayout(main_panel)
         main_panel_layout.setContentsMargins(0, 0, 0, 0)
@@ -143,6 +168,7 @@ class MainWindow(QMainWindow):
         # MOD LIST
         # ----------------------------
         self.mod_list = QListWidget()
+        self.mod_list.setMinimumWidth(300)
         self.load_mods()      
         self.mod_list.itemClicked.connect(self.display_metadata)
         self.mod_list.itemChanged.connect(self.on_item_changed)
@@ -151,26 +177,59 @@ class MainWindow(QMainWindow):
         # META DATA PANEL
         # ----------------------------
         mod_view = QFrame()
+        mod_view.setMinimumWidth(500)
         mod_view.setFrameStyle(QFrame.StyledPanel)
 
         mod_view_layout = QVBoxLayout(mod_view)
-        mod_view_layout.setContentsMargins(0,0,0,0)
-        mod_view_layout.setSpacing(0)
+        mod_view_layout.setContentsMargins(10,10,10,10)
+        mod_view_layout.setSpacing(2)
 
-        # mod_view_title = QLabel("Mod Information")
+        # ----------------------------
+        # Empty Page
+        # ----------------------------
+        self.info_stack = QStackedWidget()
 
+        empty_page = QWidget()
+        empty_layout = QVBoxLayout(empty_page)
+
+        title = QLabel("No Mod Selected")
+        title.setAlignment(Qt.AlignCenter)
+
+        message = QLabel("Select a mod from the list to view details.")
+        message.setAlignment(Qt.AlignCenter)
+
+        empty_layout.addStretch()
+        empty_layout.addWidget(title)
+        empty_layout.addWidget(message)
+        empty_layout.addStretch()
+
+        # ----------------------------
+        # Mod Info
+        # ----------------------------
         mod_info = QFrame()
-        mod_info.setFrameShape(QFrame.StyledPanel)
+        mod_info.setFrameStyle(QFrame.StyledPanel)
 
         mod_info_layout = QVBoxLayout(mod_info)
         mod_info_layout.setContentsMargins(10,10,10,10)
         mod_info_layout.setSpacing(5)
 
         self.thumbnail = QLabel()
-        self.thumbnail.setAlignment(Qt.AlignCenter)
-        self.mod_name_label = QLabel("Mod Name:")
-        self.mod_creator_label = QLabel("Creator:")
+
         self.mod_enabled_state = QLabel("")
+        self.mod_source_label = QLabel("")
+
+        self.mod_name_label = QLabel("")
+        self.mod_name_label.setStyleSheet("""
+            font-size: 18px;
+            font-weight: bold;
+        """)
+        self.mod_creator_label = QLabel("Creator:")
+        
+        description_label = QLabel("Description")
+        description_label.setStyleSheet("""
+            font-weight: bold;
+            font-size: 14px;
+        """)
 
         self.mod_workshop_description = QTextEdit()
         self.mod_workshop_description.setReadOnly(True)
@@ -182,29 +241,119 @@ class MainWindow(QMainWindow):
         # =========================================================
         # ADD TO MOD INFO
         # =========================================================
-        mod_info_layout.addWidget(self.thumbnail)
-        mod_info_layout.addWidget(self.mod_name_label)
-        mod_info_layout.addWidget(self.mod_creator_label)
-        mod_info_layout.addWidget(self.mod_enabled_state)
+        mod_info_header = QHBoxLayout()
+        mod_info_header.setSpacing(20)
+
+        meta_layout = QVBoxLayout()
+        meta_layout.setSpacing(5)
+
+        mod_badges = QHBoxLayout()
+        mod_badges.setSpacing(5)
+        mod_badges.setAlignment(Qt.AlignLeft)
+        mod_badges.addWidget(self.mod_enabled_state)
+        mod_badges.addWidget(self.mod_source_label )
+
+        meta_layout.addStretch()
+        
+        meta_layout.addLayout(mod_badges)
+        meta_layout.addWidget(self.mod_name_label)
+        meta_layout.addWidget(self.mod_creator_label)
+        meta_layout.addStretch()
+
+        mod_info_header.addWidget(self.thumbnail)
+        mod_info_header.addLayout(meta_layout)
+        mod_info_header.addStretch()
+
+        mod_info_layout.addLayout(mod_info_header)
+        mod_info_layout.addWidget(description_label)
         mod_info_layout.addWidget(self.mod_workshop_description)
+        mod_info_layout.addStretch()
         mod_info_layout.addWidget(self.convert_from_workshop_btn)
+
+        # =========================================================
+        # SETTINGS
+        # =========================================================
+        settings_pane = QWidget()
+        settings_layout = QVBoxLayout(settings_pane)
+
+        settings_title = QLabel("Settings")
+        settings_title.setAlignment(Qt.AlignCenter)
+
+        choose_game_dir_layout = QHBoxLayout()
+        choose_game_dir_label = QLabel("Choose Game Exe:")
+
+        self.choose_game_dir_path = QLineEdit()
+        self.choose_game_dir_path.setMinimumWidth(200)
+        self.choose_game_dir_path.setMaximumWidth(700)
+        self.choose_game_dir_path.setText(self.settings["GameDir"])
+        self.choose_game_dir_path.setReadOnly(True)
+        self.choose_game_dir_path.selectAll()
+
+        choose_game_dir_btn = QPushButton("Browse")
+        choose_game_dir_btn.clicked.connect(self.select_game_path)
+
+        choose_game_dir_layout.addWidget(choose_game_dir_label)
+        choose_game_dir_layout.addWidget(self.choose_game_dir_path)
+        choose_game_dir_layout.addWidget(choose_game_dir_btn)
+
+        self.auto_check_update_box = QCheckBox("Check for updates automatically")
+        self.auto_check_update_box.clicked.connect(self.check_auto_update_state)
+
+        if self.settings["AutoCheck"]:
+            self.auto_check_update_box.setChecked(True)
+        else:
+            self.auto_check_update_box.setChecked(False)
+
+        settings_layout.addWidget(settings_title)
+        settings_layout.addLayout(choose_game_dir_layout)
+        settings_layout.addWidget(self.auto_check_update_box)
+        settings_layout.addStretch()
+
+
+        # =========================================================
+        # BUILD STACK
+        # =========================================================
+        self.info_stack.addWidget(empty_page)
+        self.info_stack.addWidget(mod_info)
+        self.info_stack.addWidget(settings_pane)
+
+        
+        settings_action.triggered.connect(lambda: self.info_stack.setCurrentIndex(2))
+        self.info_stack.setCurrentIndex(0)
+
         # =========================================================
         # ADD TO MOD VIEW
         # =========================================================
-        # mod_view_layout.addWidget(mod_view_title, alignment=Qt.AlignCenter)
-        mod_view_layout.addWidget(mod_info, alignment=Qt.AlignCenter, stretch=1)
+        mod_view_layout.addWidget(self.info_stack, alignment=Qt.AlignCenter, stretch=1)
+
+        splitter = QSplitter()
+        splitter.addWidget(self.mod_list)
+        splitter.addWidget(mod_view)
+        splitter.setSizes([350, 650])
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 2)
+        splitter.setChildrenCollapsible(False)
 
         # =========================================================
         # ADD TO Main Panel
         # =========================================================
-        main_panel_layout.addWidget(self.mod_list, stretch=2)
-        main_panel_layout.addWidget(mod_view, stretch=1)
+        main_panel_layout.addWidget(splitter)
 
         # =========================================================
         # ADD TO ROOT
         # =========================================================
-        root_layout.addWidget(top_bar)
         root_layout.addWidget(main_panel)
+
+        # =========================================================
+        # SHORTCUTS
+        # =========================================================
+        QShortcut("Ctrl+F", self, self.search_bar.setFocus)
+        QShortcut("F5", self, self.refresh)
+        QShortcut("Delete", self, self.delete_selected_mod)
+        QShortcut("Ctrl+S", self, self.deploy_mods)
+        QShortcut("Ctrl+O", self, self.add_mod_from_zip)
+        QShortcut("Ctrl+Return", self, self.launch_game)
+        QShortcut("F2", self, lambda: self.info_stack.setCurrentIndex(2))
 
     # builds the list of mods in the mod list and stores the GUID for use in the hash_map
     def load_mods(self):
@@ -222,13 +371,10 @@ class MainWindow(QMainWindow):
             # store ONLY GUID (not dict reference)
             item.setData(Qt.UserRole, mod["GUID"])
 
-            if mod["IsFromWorkshop"] == "True":
-                item.setFlags(item.flags() & ~Qt.ItemIsUserCheckable)
-            else:
-                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
 
-                enabled = mod.get("Enabled", "False") == "True"
-                item.setCheckState(Qt.Checked if enabled else Qt.Unchecked)
+            enabled = mod.get("Enabled", "False") == "True"
+            item.setCheckState(Qt.Checked if enabled else Qt.Unchecked)
 
             self.mod_list.addItem(item)
 
@@ -241,7 +387,7 @@ class MainWindow(QMainWindow):
             meta = self.read_meta_file(item)
             mods.append(meta)
 
-        for folder in self.workshop_dir.iterdir():
+        for folder in Path(self.settings["WorkshopDir"]).iterdir():
             if folder.is_dir():
                 for sub in folder.glob("*.mod"):
                     meta = self.read_meta_file(sub)
@@ -305,6 +451,8 @@ class MainWindow(QMainWindow):
         mod["Enabled"] = "True" if item.checkState() == Qt.Checked else "False"
         self.changes_made = True
 
+
+
     # Writes changes to disk.
     def write_meta_file(self, mod):
         meta_path = Path(mod["MetaData"])
@@ -347,7 +495,7 @@ class MainWindow(QMainWindow):
             self.write_meta_file(mod)
 
         self.changes_made = False
-        print("Mods Deployed")
+        self.status_bar.showMessage("Changes saved", 3000)
 
     # Allows the user to manually select the location of a mod in a zip file. The runs the _install_zip() function
     def add_mod_from_zip(self):
@@ -389,7 +537,7 @@ class MainWindow(QMainWindow):
             final_path = self.local_mod_dir / mod_folder.name
 
             if final_path.exists():
-                print("Mod already exists")
+                self.status_bar.showMessage("Mod already exists", 3000)
                 return
 
             shutil.move(str(mod_folder), final_path)
@@ -405,7 +553,7 @@ class MainWindow(QMainWindow):
 
         self.load_mods()
 
-        print(f"Installed: {new_mod['ModName']}")
+        self.status_bar.showMessage(f"Installed: {new_mod['ModName']}", 3000)
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
@@ -428,7 +576,7 @@ class MainWindow(QMainWindow):
         item = self.mod_list.currentItem()
 
         if not item:
-            print("No mod selected")
+            self.status_bar.showMessage("No mod selected", 3000)
             return
 
         guid = item.data(Qt.UserRole)
@@ -476,7 +624,7 @@ class MainWindow(QMainWindow):
 
         self.select_top_mod()
 
-        print(f"Deleted: {mod_name}")
+        self.status_bar.showMessage(f"Deleted: {mod_name}", 3000)
 
     # Handles launching the game using steam url. If there are still changes to be made, then it will prompt the user to do so before launching
     def launch_game(self):
@@ -495,6 +643,7 @@ class MainWindow(QMainWindow):
     # Changes what is displayed in the mod info screen when selecting a mod in the list
     def display_metadata(self):
         item = self.mod_list.currentItem()
+        
 
         if not item:
             return
@@ -504,81 +653,119 @@ class MainWindow(QMainWindow):
 
         if not mod:
             return
+        
+        self.status_bar.showMessage(f"{mod.get('ModName')} Selected", 3000)
 
         # ---- Changes ----
         thumbnail_path = mod.get('Thumbnail')
         if thumbnail_path:
             piximap = QPixmap(thumbnail_path)
             self.thumbnail.setPixmap(piximap.scaled(
-                200,
-                200,
+                250,
+                250,
                 Qt.KeepAspectRatio,
                 Qt.SmoothTransformation)
                                      )
 
-
-        self.mod_name_label.setText(f"Mod Name: {mod.get('ModName')}")
+        self.mod_name_label.setText(f"{mod.get('ModName')}")
         self.mod_creator_label.setText(f"Creator: {mod.get('CreatorId')}")
         if mod.get("Enabled") == "True":
             self.mod_enabled_state.setText("Enabled")
+            self.mod_enabled_state.setFixedWidth(62)
+            self.mod_enabled_state.setStyleSheet("""
+                background: #2d7d32;
+                color: white;
+                border-radius: 4px;
+                padding: 2px 6px;
+            """)
         else:
             self.mod_enabled_state.setText("Disabled")
+            self.mod_enabled_state.setFixedWidth(67)
+            self.mod_enabled_state.setStyleSheet("""
+                background: #c90812;
+                color: white;
+                border-radius: 4px;
+                padding: 2px 6px;
+            """)
+
         self.mod_workshop_description.setPlainText(f"{mod.get('WorkshopDescription')}")
 
         if mod.get("IsFromWorkshop") == "True":
+            self.mod_source_label.setText("Workshop")
+            self.mod_source_label.setStyleSheet("""
+                background: #1d1369;
+                color: white;
+                border-radius: 4px;
+                padding: 2px 6px;
+            """)
             self.convert_from_workshop_btn.show()
         else:
+            self.mod_source_label.setText("Local")
+            self.mod_source_label.setStyleSheet("""
+                background: #e67505;
+                color: white;
+                border-radius: 4px;
+                padding: 2px 6px;
+            """)
             self.convert_from_workshop_btn.hide()
+
+        self.info_stack.setCurrentIndex(1)
 
     # Intialises self.settings with local data or runs first time setup.
     def load_settings(self):
         try:
             with open("settings.json", "r") as f:
                 settings = json.load(f)
+        
+            self.settings = settings
 
-            
+            if "AutoCheck" not in self.settings:
+                self.settings["AutoCheck"] = False
+                self.save_settings()
 
         except (FileNotFoundError, json.JSONDecodeError):
+            self.select_game_path(fts=True)
+        
 
-            QMessageBox.information(None, "First Time Setup", "Select your 'Paralives.exe' file on the next screen.")
-            possible_exe_locations = [Path(r"C:\Program Files (x86)\Steam\steamapps\common\Paralives"),
+    def select_game_path(self, fts=False):
+        possible_exe_locations = [Path(r"C:\Program Files (x86)\Steam\steamapps\common\Paralives"),
                                       Path(r"D:\SteamLibrary\steamapps\common\Paralives"),
                                       Path(r"E:\SteamLibrary\steamapps\common\Paralives")
                                       ]
             
-            start_dir = str(Path.home())
+        start_dir = str(Path.home())
 
-            for path in possible_exe_locations:
-                if path.exists():
-                    start_dir = str(path)
-                    break
+        for path in possible_exe_locations:
+            if path.exists():
+                start_dir = str(path)
+                break
 
-            game_path = QFileDialog.getOpenFileName(
+        game_path = QFileDialog.getOpenFileName(
                 None,
                 "Select 'Paralives.exe'",
                 start_dir, # Starting Path
                 "Excecutable Files (Paralives.exe)"
             )[0]
         
-            if Path(game_path).name == "Paralives.exe":
-                file_path = Path(game_path)
-                drive = file_path.drive
+        if Path(game_path).name == "Paralives.exe":
+            file_path = Path(game_path)
+            drive = file_path.drive
 
-                if drive == "C:":
-                    workshop_dir = f"{drive}/Program Files (x86)/Steam/steamapps/workshop/content/1118520"
-                else:
-                    workshop_dir = f"{drive}/SteamLibrary/steamapps/workshop/content/1118520"
-
-                settings = {"GameDir": game_path,
-                            "WorkshopDir": workshop_dir}
+            if drive == "C:":
+                workshop_dir = f"{drive}/Program Files (x86)/Steam/steamapps/workshop/content/1118520"
             else:
-                QMessageBox.warning(None, "Error", "File selected was not 'Paralives.exe'.\nPlease re-open the program and try again.")
+                workshop_dir = f"{drive}/SteamLibrary/steamapps/workshop/content/1118520"
+
+        else:
+            if fts == True:
                 sys.exit()
-            
-            with open("settings.json", "w") as f:
-                json.dump(settings, f, indent=4)
+            else:
+                return
         
-        return settings
+        self.settings["GameDir"] = game_path
+        self.settings["WorkshopDir"] = workshop_dir
+        self.settings["AutoCheck"] = False
+        self.save_settings()
 
     # Function to be used whenever settings are changed within the application itself. Saves to local settings file
     def save_settings(self):
@@ -598,6 +785,8 @@ class MainWindow(QMainWindow):
         if not mod:
             return
         
+        
+        
         print(mod["ModPath"])
 
         confirm = QMessageBox.question(
@@ -616,6 +805,8 @@ class MainWindow(QMainWindow):
             self.refresh()
             self.select_top_mod()
 
+            self.status_bar.showMessage(f"{mod.get('ModName')} converted to Local", 3000)
+
             QMessageBox.information(
                 None,
                 "Important",
@@ -632,6 +823,7 @@ class MainWindow(QMainWindow):
     def refresh(self):
         self.get_installed_mods()
         self.load_mods()
+        self.status_bar.showMessage("Mod List Refreshed", 3000)
 
     def filter_mods(self, text):
         text = text.lower().strip()
@@ -668,14 +860,16 @@ class MainWindow(QMainWindow):
         for asset in data["assets"]:
             if asset["name"].endswith(".exe"):
                 return asset["browser_download_url"]
-
-    def meow(self):
-        self.meow_button_count += 1
-        if self.meow_button_count > 20:
-
-            print("Billie")
+            
+    def check_auto_update_state(self):
+        if self.auto_check_update_box.isChecked():
+            self.settings["AutoCheck"] = True
+            self.status_bar.showMessage("Auto Check for Updates Enabled", 3000)
         else:
-            return
+            self.settings["AutoCheck"] = False
+            self.status_bar.showMessage("Auto Check for Updates Disabled", 3000)
+        
+        self.save_settings()
         
     
 
