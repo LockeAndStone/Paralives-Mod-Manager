@@ -51,10 +51,10 @@ class MainWindow(QMainWindow):
         self.owner = "LockeAndStone"
         self.repo = "Paralives-Mod-Manager"
         self.giturl = f"https://api.github.com/repos/{self.owner}/{self.repo}/releases/latest"
-        self.response = requests.get(self.giturl, timeout=5)
-
+        
         if self.settings["AutoCheck"]:
             try:
+                self.response = requests.get(self.giturl, timeout=5)
                 self.latest_version = str(self.response.json()["tag_name"])
                 self.download_url = self.get_latest_download()
                 self.update_available = self.check_update()
@@ -84,7 +84,7 @@ class MainWindow(QMainWindow):
 
         root_layout = QVBoxLayout(root)
         root_layout.setContentsMargins(10, 10, 10, 10)
-        root_layout.setSpacing(10)
+        root_layout.setSpacing(5)
 
         # --------------------------------
         # TOOL BAR
@@ -722,6 +722,9 @@ class MainWindow(QMainWindow):
             if "AutoCheck" not in self.settings:
                 self.settings["AutoCheck"] = False
                 self.save_settings()
+            
+            if not Path(self.settings["WorkshopDir"]).exists():
+                Path(self.settings["WorkshopDir"]).mkdir(parents=True, exist_ok=True)
 
         except (FileNotFoundError, json.JSONDecodeError):
             self.select_game_path(fts=True)
@@ -755,6 +758,9 @@ class MainWindow(QMainWindow):
                 workshop_dir = f"{drive}/Program Files (x86)/Steam/steamapps/workshop/content/1118520"
             else:
                 workshop_dir = f"{drive}/SteamLibrary/steamapps/workshop/content/1118520"
+
+            if not Path(workshop_dir).exists():
+                Path(workshop_dir).mkdir(parents=True, exist_ok=True)
 
         else:
             if fts == True:
