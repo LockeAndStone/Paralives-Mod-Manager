@@ -34,7 +34,7 @@ class SearchBar(QLineEdit):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.app_ver = "1.0.4"
+        self.app_ver = "1.0.6"
         self.base_dir = Path(os.environ["USERPROFILE"]) # Set the base dir for where the users folder is on the OS
         self.local_mod_dir = self.base_dir / "AppData/LocalLow/Paralives/Paralives" # Using the base dir, points to the paralives mod folder.
         self.settings = {} # Assigns the settings dictionary
@@ -43,7 +43,8 @@ class MainWindow(QMainWindow):
         self.installed_mods = [] # This is where all mod data is stored for the program. Initialised by the self.get_installed_mods() function
         self.mod_map = "" # This allows for quick lookup for the installed mods. Allows for a single source of truth approach.
         self.base_mods = ["MySavedGames.mod", "MyPremadeOutfits.mod", "MyPremadeLot.mod", "MyPremadeHouseholds.mod", "MyOptions.mod", "Local.mod", ""] # A list of mods to ignore
-        
+        self.check_all_state = False
+
         self.status_bar = self.statusBar()
         self.status_bar.showMessage("Ready", 10000)
 
@@ -94,14 +95,25 @@ class MainWindow(QMainWindow):
         toolbar.setMovable(False)
         toolbar.setFloatable(False)
 
-        refresh_action = toolbar.addAction("Refresh")
-        refresh_action.triggered.connect(self.refresh)
-        refresh_action.setToolTip("Refresh Mod List [F5]")
+        toolbar.addSeparator()
+
+        self.check_all_action = toolbar.addAction("Enable/Disable All")
+        self.check_all_action.triggered.connect(self.check_all)
+
+        if self.check_all_state:
+            self.check_all_action.setText("Enable All")
+        else:
+            self.check_all_action.setText("Disable All")
+
+        save_action = toolbar.addAction("Save Changes")
+        save_action.triggered.connect(self.deploy_mods)
+        save_action.setToolTip("Save Enabled/Disabled Mods [Ctrl + S]")
 
         toolbar.addSeparator()
 
-        settings_action = toolbar.addAction("Settings")
-        settings_action.setToolTip("App Settings [F2]")
+        refresh_action = toolbar.addAction("Refresh")
+        refresh_action.triggered.connect(self.refresh)
+        refresh_action.setToolTip("Refresh Mod List [F5]")
 
         toolbar.addSeparator()
 
@@ -126,15 +138,16 @@ class MainWindow(QMainWindow):
 
         toolbar.addSeparator()
 
-        save_action = toolbar.addAction("Save Changes")
-        save_action.triggered.connect(self.deploy_mods)
-        save_action.setToolTip("Save Enabled/Disabled Mods [Ctrl + S]")
+        settings_action = toolbar.addAction("Settings")
+        settings_action.setToolTip("App Settings [F2]")
 
         toolbar.addSeparator()
 
         launch_action = toolbar.addAction("Launch")
         launch_action.triggered.connect(self.launch_game)
         launch_action.setToolTip("Launch Game on Steam [Ctr + Enter]")
+
+        toolbar.addSeparator()
 
         if self.settings["AutoCheck"]:
             if self.update_available:
@@ -451,7 +464,20 @@ class MainWindow(QMainWindow):
         mod["Enabled"] = "True" if item.checkState() == Qt.Checked else "False"
         self.changes_made = True
 
+    def check_all(self):
+        for i in range(self.mod_list.count()):
+            item = self.mod_list.item(i)
 
+            if self.check_all_state:
+                item.setCheckState(Qt.Checked)
+                self.check_all_action.setText("Disable All")
+                self.status_bar.showMessage("Enabled All Mods: Don't forget to save changes!", 10000)
+            else:
+                item.setCheckState(Qt.Unchecked)
+                self.check_all_action.setText("Enable All")
+                self.status_bar.showMessage("Disabled All Mods: Don't forget to save changes!", 10000)
+
+        self.check_all_state = not self.check_all_state
 
     # Writes changes to disk.
     def write_meta_file(self, mod):

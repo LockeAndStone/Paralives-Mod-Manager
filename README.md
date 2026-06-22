@@ -1,6 +1,10 @@
 # Paralives-Mod-Manager
 Mod manager for Paralives
 
+## Important!!
+If you are updating from a previous version, just replace the old exe with the new one.
+This will preserve your settings.
+
 ## Current Features
 - Tracks both Local and Workshop Mods
 - Allows conversion of Workshop to local mods (Must manually un-subscribe from the workshop mod after)
@@ -13,8 +17,6 @@ Mod manager for Paralives
 - You can still use the ingame mod manager to disable/enable mods, and these changes will be reflected in the mod manager by pressing the refresh button.
 
 ## Planned Features
-- The ability to Add 7zip files (I admit it... this was a huge oversight! My bad)
 - The ability to create profiles, so you can curate mod lists that you can switch between whenever you want.
 - Bepinex support
-- I am considering more management around workshop mods and how I want my manager to interact with them.
 - More to Come!
